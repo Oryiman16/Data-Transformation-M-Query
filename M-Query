@@ -1,0 +1,25 @@
+--M-Query
+
+let
+    Source = OData.Feed("https://services.odata.org/Northwind/Northwind.svc/", null, [Implementation="2.0"]),
+    Customers_table = Source{[Name="Customers",Signature="table"]}[Data],
+    #"Merged Queries" = Table.NestedJoin(Customers_table, {"CustomerID"}, Orders, {"CustomerID"}, "Orders.1", JoinKind.LeftOuter),
+    #"Filtered Rows" = Table.SelectRows(#"Merged Queries", each true),
+    #"Expanded Orders" = Table.ExpandTableColumn(#"Filtered Rows", "Orders", {"CustomerID"}, {"Orders.CustomerID"}),
+    #"Expanded CustomerDemographics" = Table.ExpandTableColumn(#"Expanded Orders", "CustomerDemographics", {"Customers"}, {"CustomerDemographics.Customers"}),
+    #"Removed Columns" = Table.RemoveColumns(#"Expanded CustomerDemographics",{"CustomerDemographics.Customers"}),
+    #"Expanded Orders.1" = Table.ExpandTableColumn(#"Removed Columns", "Orders.1", {"OrderID"}, {"Orders.1.OrderID"}),
+    #"Removed Columns1" = Table.RemoveColumns(#"Expanded Orders.1",{"Region", "PostalCode"}),
+    #"Filtered Rows1" = Table.SelectRows(#"Removed Columns1", each true),
+    #"Split Column by Delimiter" = Table.SplitColumn(#"Filtered Rows1", "Fax", Splitter.SplitTextByDelimiter("-", QuoteStyle.Csv), {"Fax.1", "Fax.2"}),
+    #"Changed Type" = Table.TransformColumnTypes(#"Split Column by Delimiter",{{"Fax.1", type text}, {"Fax.2", Int64.Type}}),
+    #"Filtered Rows2" = Table.SelectRows(#"Changed Type", each true),
+    #"Replaced Value" = Table.ReplaceValue(#"Filtered Rows2",null,"000",Replacer.ReplaceValue,{"Fax.1"}),
+    #"Filtered Rows3" = Table.SelectRows(#"Replaced Value", each true),
+    #"Changed Type1" = Table.TransformColumnTypes(#"Filtered Rows3",{{"Fax.2", type text}}),
+    #"Replaced Value1" = Table.ReplaceValue(#"Changed Type1","Null","N/A",Replacer.ReplaceText,{"Fax.2"}),
+    #"Replaced Value2" = Table.ReplaceValue(#"Replaced Value1",null,"N/A",Replacer.ReplaceValue,{"Fax.2"}),
+    #"Replaced Errors" = Table.ReplaceErrorValues(#"Replaced Value2", {{"Fax.2", "N/A"}}),
+    #"Filtered Rows4" = Table.SelectRows(#"Replaced Errors", each true)
+in
+    #"Filtered Rows4"
